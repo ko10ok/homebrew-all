@@ -1,4 +1,4 @@
-class Doq < Formula
+class Doque < Formula
   include Language::Python::Virtualenv
 
   desc "Do Query - cli llm client"
