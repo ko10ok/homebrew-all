@@ -3,8 +3,8 @@ class Doque < Formula
 
   desc "Do Query - cli llm client"
   homepage "https://github.com/ko10ok/do"
-  url "https://files.pythonhosted.org/packages/c1/3b/cd4dbe57e6c4a2562e61a896c4f97102a79565253c4a79b8e43ed7a9d65d/doque-0.2.0.tar.gz"
-  sha256 "8ce2e9a3e1f97cca1d4cd9c446d7f3fdb206baf679cd02b848afc661189ecf8e"
+  url "https://files.pythonhosted.org/packages/dd/a0/cb1b27d393d93c7ed2f2b5f1e1090d589665b501a6515096270beb3875d3/doque-0.2.1.tar.gz"
+  sha256 "866f1481a837efd57c40f5a10ad0a4157265681617dd7e4cc0ff8d992d0fb0b0"
   license "Apache-2.0"
 
   depends_on "python@3.12"
@@ -80,13 +80,13 @@ class Doque < Formula
   end
 
   resource "jiter" do
-    url "https://files.pythonhosted.org/packages/45/9d/e0660989c1370e25848bb4c52d061c71837239738ad937e83edca174c273/jiter-0.12.0.tar.gz"
-    sha256 "64dfcd7d5c168b38d3f9f8bba7fc639edb3418abcc74f22fdbe6b8938293f30b"
+    url "https://files.pythonhosted.org/packages/46/e5/50ff23c9bba2722d2f0f55ba51e57f7cbab9a4be758e6b9b263ef51e6024/jiter-0.7.1.tar.gz"
+    sha256 "448cf4f74f7363c34cdef26214da527e8eeffd88ba06d0b80b485ad0667baf5d"
   end
 
   resource "openai" do
-    url "https://files.pythonhosted.org/packages/d5/e4/42591e356f1d53c568418dc7e30dcda7be31dd5a4d570bca22acb0525862/openai-2.8.1.tar.gz"
-    sha256 "cb1b79eef6e809f6da326a7ef6038719e35aa944c42d081807bfa1be8060f15f"
+    url "https://files.pythonhosted.org/packages/c6/a1/a303104dc55fc546a3f6914c842d3da471c64eec92043aef8f652eb6c524/openai-1.109.1.tar.gz"
+    sha256 "d173ed8dbca665892a6db099b4a2dfac624f94d20a93f46eb0b56aae940ed869"
   end
 
   resource "pydantic" do

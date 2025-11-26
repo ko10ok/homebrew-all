@@ -19,6 +19,62 @@ def normalize_package_name(name: str) -> str:
     return re.sub(r'[-_.]+', '-', name).lower()
 
 
+def fetch_github_requirements(formula_content: str) -> Dict[str, str]:
+    """
+    Fetch requirements.txt from GitHub repository if homepage is a GitHub URL.
+    Returns dict mapping package name to pinned version (or None for no constraint).
+    """
+    # Extract homepage from formula
+    homepage_match = re.search(r'homepage\s+"([^"]+)"', formula_content)
+    if not homepage_match:
+        return {}
+
+    homepage = homepage_match.group(1)
+
+    # Check if it's a GitHub URL
+    github_match = re.match(r'https://github\.com/([^/]+)/([^/]+)', homepage)
+    if not github_match:
+        return {}
+
+    owner, repo = github_match.groups()
+
+    # Try to fetch requirements.txt from master/main branch
+    requirements = {}
+    for branch in ['master', 'main']:
+        url = f"https://raw.githubusercontent.com/{owner}/{repo}/{branch}/requirements.txt"
+        try:
+            response = requests.get(url, timeout=5)
+            if response.ok:
+                print(f"  📄 Found requirements.txt in GitHub repo ({branch} branch)")
+                # Parse requirements.txt
+                for line in response.text.splitlines():
+                    line = line.strip()
+                    # Skip comments and empty lines
+                    if not line or line.startswith('#'):
+                        continue
+
+                    # Parse requirement
+                    try:
+                        req = Requirement(line)
+                        pkg_name = normalize_package_name(req.name)
+
+                        # Extract exact version if pinned with ==
+                        if req.specifier:
+                            for spec in req.specifier:
+                                if spec.operator == '==':
+                                    requirements[pkg_name] = spec.version
+                                    print(f"    📌 Pinned: {req.name} == {spec.version}")
+                                    break
+                    except Exception:
+                        continue
+
+                return requirements
+        except Exception:
+            continue
+
+    return {}
+
+
 def get_pypi_package_info(package_name: str, version: Optional[str] = None) -> Optional[dict]:
     """
     Fetch package info from PyPI.
@@ -91,6 +147,7 @@ def resolve_dependencies(
     package_version: str,
     resolved: Dict[str, dict],
     visited: Set[str],
+    pinned_versions: Dict[str, str],
     depth: int = 0
 ) -> None:
     """
@@ -141,20 +198,25 @@ def resolve_dependencies(
         if dep_name in resolved:
             continue
 
-        # Get the latest version that matches the specifier
-        dep_info = get_pypi_package_info(dep_name)
-        if not dep_info:
-            continue
+        # Check if version is pinned in requirements.txt
+        if dep_name in pinned_versions:
+            dep_version = pinned_versions[dep_name]
+            print(f"{indent}  📌 Using pinned version: {dep_name} == {dep_version}")
+        else:
+            # Get the latest version that matches the specifier
+            dep_info = get_pypi_package_info(dep_name)
+            if not dep_info:
+                continue
 
-        dep_version = dep_info['version']
+            dep_version = dep_info['version']
 
-        # Check if version satisfies specifier
-        if specifier and not specifier.contains(dep_version):
-            # Try to find a compatible version (simplified - just use latest)
-            print(f"{indent}  ⚠️  Version {dep_version} may not satisfy {specifier}")
+            # Check if version satisfies specifier
+            if specifier and not specifier.contains(dep_version):
+                # Try to find a compatible version (simplified - just use latest)
+                print(f"{indent}  ⚠️  Version {dep_version} may not satisfy {specifier}")
 
         # Recursively resolve
-        resolve_dependencies(dep_name, dep_version, resolved, visited, depth + 1)
+        resolve_dependencies(dep_name, dep_version, resolved, visited, pinned_versions, depth + 1)
 
 
 def extract_package_info(formula_content: str) -> Optional[Tuple[str, str, str, str]]:
@@ -291,7 +353,7 @@ def update_formula_file(filepath: Path, new_info: dict, dependencies: Dict[str, 
         return False
 
 
-def main(recursive: bool = False):
+def main():
     """Main function to update all formulas."""
     formula_dir = Path(__file__).parent / "Formula"
 
@@ -307,10 +369,7 @@ def main(recursive: bool = False):
         return
 
     print(f"Found {len(formula_files)} formula file(s)")
-    if recursive:
-        print("🔄 Recursive mode: Will resolve all transitive dependencies\n")
-    else:
-        print("📦 Simple mode: Will only update package versions (use -r for dependencies)\n")
+    print("🔄 Resolving all transitive dependencies\n")
 
     updated_count = 0
 
@@ -338,21 +397,21 @@ def main(recursive: bool = False):
 
         print(f"  Latest: {latest_info['version']}")
 
-        # Resolve dependencies only if recursive mode is enabled
+        # Fetch pinned versions from requirements.txt if available
+        pinned_versions = fetch_github_requirements(content)
+
+        # Resolve all dependencies
+        print(f"  🔍 Resolving dependencies...")
         dependencies = {}
-        if recursive:
-            print(f"  🔍 Resolving dependencies...")
-            visited = set()
-            resolve_dependencies(
-                package_name,
-                latest_info['version'],
-                dependencies,
-                visited
-            )
-            print(f"  Found {len(dependencies)} total packages (including main)")
-        else:
-            # In non-recursive mode, only include the main package
-            dependencies[normalize_package_name(package_name)] = latest_info
+        visited = set()
+        resolve_dependencies(
+            package_name,
+            latest_info['version'],
+            dependencies,
+            visited,
+            pinned_versions
+        )
+        print(f"  Found {len(dependencies)} total packages (including main)")
 
         # Update formula
         if update_formula_file(formula_file, latest_info, dependencies):
@@ -367,20 +426,13 @@ def main(recursive: bool = False):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description='Update Python package formulas in Formula/ directory',
+        description='Update Python package formulas in Formula/ directory with all dependencies',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog='''
-Examples:
-  python update.py           # Update versions only
-  python update.py -r        # Update versions and resolve all dependencies
-  python update.py --recursive  # Same as -r
+Example:
+  python update.py           # Update versions and resolve all dependencies
         '''
-    )
-    parser.add_argument(
-        '-r', '--recursive',
-        action='store_true',
-        help='Recursively resolve and add all transitive dependencies as resources'
     )
 
     args = parser.parse_args()
-    main(recursive=args.recursive)
+    main()
